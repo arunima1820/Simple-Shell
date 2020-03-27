@@ -6,39 +6,55 @@
 #include <iostream>
 #include <string>
 #include <unistd.h>
-#include <string.h>
+#include <regex>
 
 using namespace std;
 
-char **split(char *line)
+vector<string> split(string line)
 {
-    string arg;
-    arg = strtok(line, " ");
-    // TO DO create a string array in char**
-    // return pointer to first index
-    return nullptr;
+    string command;     // stores the individual command
+    vector<string> vec; // array of all the '|' and ';' separated commands
+
+    for (int i = 0; i < line.length(); i++)
+    {
+        if (line.at(i) == '|' || line.at(i) == ';')
+        {
+            vec.push_back(command);
+            command = nullptr;
+            continue;
+        }
+        else
+        {
+            command += line.at(i);
+        }
+    }
+
+    return vec;
 }
 
-int execute()
+int execute(vector<string> args)
 {
-    // FML
+    for (auto i : args)
+        printf("%s, ", i);
+    return 0;
 }
 
+// runs each line of the terminal
 void run()
 {
-    char *line;  // string
-    char **args; // string array
-    int status;  //exit status
+    char *line;          // string
+    vector<string> args; // string array
+    int status;          //exit status
 
     do
     {
         printf("> ");
         cin >> line;
         args = split(line);
-        status = execute();
+        status = execute(args);
 
         line = nullptr;
-        args = nullptr;
+        args.clear();
     } while (status);
 }
 
