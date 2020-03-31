@@ -2,15 +2,17 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <string.h>
 
 /* FUNCTION DECLARATIONS */
 
 void parse(char *, char **);
+void parseSequence(char *line);
 void execute(char **argv);
-void pipeFunc(/* char *cmd1[], char *cmd2[] */);
+void runPipe(char *cmd1[], char *cmd2[], char *cmd3[]);
 void parsePipe();
 
-/* -------------------------------------------------- */
+/* ------------------ parse function ----------------- */
 
 void parse(char *line, char **argv)
 {
@@ -39,87 +41,94 @@ void parse(char *line, char **argv)
     *argv = '\0';
 }
 
-/* -------------------------------------------------- */
-void parsePipe(char *line)
+/* ------------------- parse pipe -------------------- */
+void parsePipe(char line[])
 {
 
     // initialize 3 command arrays
+    // char *cmd1[3] = {"ls", "-l", NULL};
+    // char *cmd2[3] = {"grep", "myshell.c", NULL};
+    // char *cmd3[3] = {"awk", "{print $1}", NULL};
+
     char *cmd1[3];
     char *cmd2[3];
     char *cmd3[3];
 
+    char *cmd;
+    cmd = strtok(line, "|");
+    while (cmd != NULL)
+    {
+        cmd =
+    }
+
     // after parsing both pipe commands, parse
-    pipeFunc(cmd1, cmd2);
+    runPipe(cmd1, cmd2, cmd3);
 }
 
-/* -------------------------------------------------- */
+/* ------------------ run pipe ----------------------- */
 
-void pipeFunc(/* char *cmd1[], char *cmd2[] */)
+void runPipe(char *cmd1[], char *cmd2[], char *cmd3[])
 {
-    pid_t pid1, pid2, pid3;
-    int old_pipe[2];
-    int new_pipe[2];
+    int status;
+    pid_t pid;
 
-    //test command
+    int pipefds[4];
+    pipe(pipefds);
+    pipe(pipefds + 2);
 
-    //char *argv1[] = {"ls", "-1", "-h", NULL};
-    char *argv1[] = {"find", ".", "-name", "*.*", NULL};
-    char *argv2[] = {"sed", "s/.*\\.//", NULL};
-    char *argv3[] = {"sort", NULL};
-
-    //creates a pipe
-    pipe(old_pipe);
-    pipe(new_pipe);
-
-    pid1 = fork();
-    if (pid1 == 0)
+    if (fork() == 0)
     {
-        dup2(old_pipe[1], 1);
-        close(old_pipe[0]);
+        dup2(pipefds[1], 1);
 
-        execvp(argv1[0], argv1);
-        perror("exec");
-        exit(1);
+        close(pipefds[0]);
+        close(pipefds[1]);
+        close(pipefds[2]);
+        close(pipefds[3]);
+
+        execvp(*cmd1, cmd1);
+    }
+    else
+    {
+        if (fork() == 0)
+        {
+            dup2(pipefds[0], 0);
+            dup2(pipefds[3], 1);
+
+            close(pipefds[0]);
+            close(pipefds[1]);
+            close(pipefds[2]);
+            close(pipefds[3]);
+
+            execvp(*cmd2, cmd2);
+        }
+        else
+        {
+            if (fork() == 0)
+            {
+                dup2(pipefds[2], 0);
+
+                close(pipefds[0]);
+                close(pipefds[1]);
+                close(pipefds[2]);
+                close(pipefds[3]);
+
+                execvp(*cmd3, cmd3);
+            }
+        }
     }
 
-    pid2 = fork();
-    if (pid2 == 0)
+    close(pipefds[0]);
+    close(pipefds[1]);
+    close(pipefds[2]);
+    close(pipefds[3]);
+
+    for (int i = 0; i < 3; i++)
     {
-        dup2(old_pipe[0], 0);
-        close(old_pipe[1]);
-        dup2(new_pipe[1], 1);
-        close(new_pipe[0]);
-
-        execvp(argv2[0], argv2);
-        perror("exec");
-        exit(1);
+        wait(&status);
     }
-
-    pid3 = fork();
-    if (pid3 == 0)
-    {
-        dup2(new_pipe[0], 0);
-        close(new_pipe[1]);
-
-        execvp(argv3[0], argv3);
-        perror("exec");
-        exit(1);
-    }
-
-    close(old_pipe[0]);
-    close(old_pipe[1]);
-
-    close(new_pipe[0]);
-    close(new_pipe[1]);
-
-    waitpid(pid1);
-    waitpid(pid2);
-    waitpid(pid3);
-
-    return;
 }
 
-/* -------------------------------------------------- */
+/* ------------------- execute ----------------------- */
 
 void execute(char **argv)
 {
@@ -149,7 +158,7 @@ void execute(char **argv)
     }
 }
 
-/* --------------- main program ------------------ */
+/* ------------------- main program ------------------ */
 
 void main(void)
 {
@@ -175,9 +184,11 @@ void main(void)
             exit(0);
 
         // execute command(s)
-        // if (/* TODO line contains | */)
-        //     parsePipe(line);
-        // else
-        execute(argv);
+        if (strchr(line, '|') != NULL)
+            parsePipe(line);
+        else if (strchr(line, ';') != NULL)
+            parseSequence(line);
+        else
+            execute(argv);
     }
 }
